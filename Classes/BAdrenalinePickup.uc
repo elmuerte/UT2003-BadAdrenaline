@@ -3,7 +3,7 @@
 // possible contaminated adrenaline pickup
 //
 // Copyright 2003, Michiel "El Muerte" Hendriks
-// $Id: BAdrenalinePickup.uc,v 1.3 2003/10/11 12:34:08 elmuerte Exp $
+// $Id: BAdrenalinePickup.uc,v 1.4 2003/10/11 16:03:02 elmuerte Exp $
 ////////////////////////////////////////////////////////////////////////////////
 
 class BAdrenalinePickup extends AdrenalinePickup config;
@@ -90,15 +90,16 @@ function SetSideEffect()
 		{
 			switch (VisualNotification)
 			{
-				case 1: Skins[0] = material'BadAdrenaline_tex.BA.BALevel1'; break;
-				case 2: Skins[0] = material'BadAdrenaline_tex.BA.BALevel2'; break;
-				case 3: Skins[0] = material'BadAdrenaline_tex.BA.BALevel3'; break;
-				case 4: Skins[0] = material'BadAdrenaline_tex.BA.BALevel4'; break;
+				case 1: RepSkin = material'BadAdrenaline_tex.BA.BALevel1'; break;
+				case 2: RepSkin = material'BadAdrenaline_tex.BA.BALevel2'; break;
+				case 3: RepSkin = material'BadAdrenaline_tex.BA.BALevel3'; break;
+				case 4: RepSkin = material'BadAdrenaline_tex.BA.BALevel4'; break;
 			}			
 		}
-		else Skins.length = 0;
+		else RepSkin = none;
+		if (Level.NetMode != NM_DedicatedServer) Skins[0]=RepSkin;
 	}	
-	Log("SideEffect ="@SideEffect@f);
+	Log("SideEffect ="@SideEffect@f@RepSkin@Skins[0]);
 }
 
 /** find the BAController for the picking up actor */

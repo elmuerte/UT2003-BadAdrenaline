@@ -3,7 +3,7 @@
 // The new player controller to screw with your game
 //
 // Copyright 2003, Michiel "El Muerte" Hendriks
-// $Id: BAController.uc,v 1.3 2003/10/11 12:34:08 elmuerte Exp $
+// $Id: BAController.uc,v 1.4 2003/10/11 16:03:02 elmuerte Exp $
 ////////////////////////////////////////////////////////////////////////////////
 
 class BAController extends Info;
@@ -14,9 +14,12 @@ class BAController extends Info;
 #exec AUDIO IMPORT FILE="Sounds\ElastoMode.wav" NAME="ElastoModeSound"
 
 var xPlayer MyController;
+var string BAHUDClass;
+var BAHUD MyHud;
 
 /** sick time remaining */
 var float fSickTime;
+var float fOrigSickTime;
 
 //// SHROOMS MODE ////
 /** duration fo shrooms mode */
@@ -47,15 +50,14 @@ var bool bElastoMode;
 replication
 {
 	reliable if ( Role == ROLE_Authority )
-		MyController, fSickTime,
+		MyController, fSickTime, fOrigSickTime,
 		fShroomDuration, bShroomsMode, smWanderSpeed, smAccel,
 		fElastoDuration, bElastoMode,  
-		ClientShroomsMode, ClientElastoMode;
+		ClientShroomsMode, ClientElastoMode, AddHud;
 }
 
 event PreBeginPlay()
 {	
-	Log("BAController::PreBeginPlay");
 	Super.PreBeginPlay();
 	if ( Role == ROLE_Authority )
 	{
@@ -65,16 +67,20 @@ event PreBeginPlay()
 			Error("My owner is not a xPlayer:"@Owner);
 			return;
 		}	
-	}
+	}	
 }
 
 event Tick( float DeltaTime )
 {
-	if (MyController == none) Error("MyController is none");
+	if (MyController == none) 
+	{
+		Destroy();
+		return;
+	}
 
 	Super.Tick(DeltaTime);
 
-	if ( Role < ROLE_Authority )
+	if ((Role < ROLE_Authority) || (Level.NetMode != NM_DedicatedServer))
 	{
 		if (bShroomsMode) 
 		{
@@ -100,13 +106,18 @@ function ShroomsMode(optional bool bDisable)
 {
 	bShroomsMode = !bDisable;
 	ClientShroomsMode(bShroomsMode);
-	if (bShroomsMode) fSickTime = fShroomDuration;
+	if (bShroomsMode) 
+	{
+		fSickTime = fShroomDuration;
+		fOrigSickTime = fShroomDuration;
+	}
 	Log("ShroomsMode"@bShroomsMode);
 }
 
 /** activate shrooms mode on the client side */
 simulated function ClientShroomsMode(bool bEnabled)
 {
+	if (MyHud == none) AddHud();
 	if (bEnabled) 
 	{		
 		smWanderSpeed = 0.4;
@@ -127,11 +138,16 @@ simulated function ClientShroomsMode(bool bEnabled)
 			smBlur.BlurAlpha = 127;
 		}
 		MyController.AddCameraEffect(smBlur, true);
+		
+		MyHud.EffectImage = Material'BadAdrenaline_tex.HUD.HudMushRoom';
+		MyHud.ResetEffect();
 	}
 	else {
 		MyController.RemoveCameraEffect(smOverlay);
 		MyController.RemoveCameraEffect(smBlur);
 	}
+	MyHud.bActive = bEnabled;
+	MyHud.bVisible = bEnabled;
 	Log("ClientShroomsMode"@bEnabled);
 }
 
@@ -140,18 +156,25 @@ function ElastoMode(optional bool bDisable)
 {
 	// Pawn.function AddVelocity( vector NewVelocity)
 	bElastoMode = !bDisable;
-	if (bElastoMode) fSickTime = fElastoDuration;
+	if (bElastoMode) 
+	{
+		fSickTime = fElastoDuration;
+		fOrigSickTime = fElastoDuration;
+	}
 	Log("ElastoMode"@bElastoMode);
 }
 
 /** activate elasto mode on the client side */
 simulated function ClientElastoMode(bool bEnabled)
 {
+	if (MyHud == none) AddHud();
 	if (bEnabled) 
 	{
 	}
 	else {
 	}
+	MyHud.bActive = bEnabled;
+	MyHud.bVisible = bEnabled;
 	Log("ClientElastoMode"@bEnabled);
 }
 
@@ -162,6 +185,15 @@ function ResetBAMode()
 	if (bShroomsMode) ShroomsMode(true);
 	if (bElastoMode) ElastoMode(true);
 	Log("ResetBAMode");
+}
+
+simulated function AddHud()
+{
+	if ( (Role < ROLE_Authority) || (Level.NetMode != NM_DedicatedServer))
+	{
+		MyHud = BAHUD(MyController.Player.InteractionMaster.AddInteraction(BAHUDClass, MyController.Player));
+		MyHud.BAC = Self;
+	}
 }
 
 /** shrooms mode over the players input */
@@ -206,6 +238,8 @@ defaultproperties
 {
 	bAlwaysRelevant=true
 	RemoteRole=ROLE_AutonomousProxy
+
+	BAHUDClass="BadAdrenaline.BAHUD"
 
 	fShroomDuration=30
 	fElastoDuration=30
