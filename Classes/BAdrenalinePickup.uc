@@ -3,10 +3,12 @@
 // possible contaminated adrenaline pickup
 //
 // Copyright 2003, Michiel "El Muerte" Hendriks
-// $Id: BAdrenalinePickup.uc,v 1.1 2003/10/10 08:00:46 elmuerte Exp $
+// $Id: BAdrenalinePickup.uc,v 1.2 2003/10/10 14:01:39 elmuerte Exp $
 ////////////////////////////////////////////////////////////////////////////////
 
 class BAdrenalinePickup extends AdrenalinePickup config;
+
+#exec OBJ LOAD FILE=BadAdrenaline_tex.utx
 
 /** the available side effects */
 enum BASideEffect
@@ -25,6 +27,8 @@ struct SERange
 };
 /** side effect configuration, BASE_none is used if there's no match */
 var config array<SERange> SEConfig;
+
+var config byte VisualNotification;
 
 /** current side effect */
 var BASideEffect SideEffect;
@@ -80,6 +84,20 @@ function SetSideEffect()
 			break;
 		}
 	}
+	if (VisualNotification > 0)
+	{
+		if (SideEffect != BASE_None)
+		{
+			switch (VisualNotification)
+			{
+				case 1: Skins[0] = material'BadAdrenaline_tex.BA.BALevel1'; break;
+				case 2: Skins[0] = material'BadAdrenaline_tex.BA.BALevel2'; break;
+				case 3: Skins[0] = material'BadAdrenaline_tex.BA.BALevel3'; break;
+				case 4: Skins[0] = material'BadAdrenaline_tex.BA.BALevel4'; break;
+			}			
+		}
+		else Skins.length = 0;
+	}	
 	Log("SideEffect ="@SideEffect@f);
 }
 
@@ -87,4 +105,5 @@ defaultproperties
 {
 	SEConfig(0)=(Effect=BASE_Shroom,Min=0,Max=0.25)
 	SEConfig(1)=(Effect=BASE_Elasto,Min=0.25,Max=0.5)
+	VisualNotification=4
 }

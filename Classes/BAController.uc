@@ -3,12 +3,12 @@
 // The new player controller to screw with your game
 //
 // Copyright 2003, Michiel "El Muerte" Hendriks
-// $Id: BAController.uc,v 1.1 2003/10/10 08:00:46 elmuerte Exp $
+// $Id: BAController.uc,v 1.2 2003/10/10 14:01:39 elmuerte Exp $
 ////////////////////////////////////////////////////////////////////////////////
 
 class BAController extends xPlayer;
 
-#exec OBJ LOAD FILE=BadAdrenaline_rc.utx
+#exec OBJ LOAD FILE=BadAdrenaline_tex.utx
 
 #exec AUDIO IMPORT FILE="Sounds\ShroomsMode.wav" NAME="ShroomsModeSound"
 #exec AUDIO IMPORT FILE="Sounds\ElastoMode.wav" NAME="ElastoModeSound"
@@ -43,7 +43,7 @@ event PreBeginPlay()
 {
 	Super.PreBeginPlay();
 	smOverlay = new class'CameraOverlay';
-	smOverlay.OverlayMaterial = material'BadAdrenaline_rc.ShroomEffect';
+	smOverlay.OverlayMaterial = material'BadAdrenaline_tex.shroom.ShroomEffect';
 	smBlur = new class'MotionBlur';
 	smBlur.BlurAlpha = 127;
 }
