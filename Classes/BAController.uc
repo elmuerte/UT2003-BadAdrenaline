@@ -3,23 +3,26 @@
 // The new player controller to screw with your game
 //
 // Copyright 2003, Michiel "El Muerte" Hendriks
-// $Id: BAController.uc,v 1.6 2003/10/12 14:12:54 elmuerte Exp $
+// $Id: BAController.uc,v 1.7 2003/10/12 20:06:21 elmuerte Exp $
 ////////////////////////////////////////////////////////////////////////////////
 
-class BAController extends Info;
+class BAController extends xPlayer;
 
 #exec OBJ LOAD FILE=BadAdrenaline_tex.utx
 
 #exec AUDIO IMPORT FILE="Sounds\ShroomsMode.wav" NAME="ShroomsModeSound"
 #exec AUDIO IMPORT FILE="Sounds\ElastoMode.wav" NAME="ElastoModeSound"
+#exec AUDIO IMPORT FILE="Sounds\ElastoBounce.wav" Name="ElastoBounceSound"
 
-var xPlayer MyController;
 var string BAHUDClass;
-var BAHUD MyHud;
+var BAHUD MyBAHud;
 
 /** sick time remaining */
 var float fSickTime;
 var float fOrigSickTime;
+
+/** reset effects when the player died */
+var bool bResetOnDeath;
 
 //// SHROOMS MODE ////
 /** duration fo shrooms mode */
@@ -32,8 +35,6 @@ var float smWanderSpeed;
 var float smAccel;
 /** direction */
 var float smWanderDirX, smWanderDirY;
-/** the current positions */
-var float smMouseWanderX, smMouseWanderY;
 /** last change */
 var float smLastDirChangeX, smLastDirChangeY;
 /** the visual effect #1 */
@@ -46,84 +47,42 @@ var MotionBlur smBlur;
 var float fElastoDuration;
 /** true if in elasto mode */
 var bool bElastoMode;
-/** */
-var float emVelX, emVelY;
-/** */
+/** settings to bounce the player around */
+var float emInitialBounce, emBounce;
+/** the direction to hurl the player at */
+var vector emDirection, emLastVect;
+/** the fov when Elasto Mode is active */
+var int emFov;
+/** the last FOV */
 var int emLastFov;
-/** */
-var EPhysics emLastPhys;
+/** set to true when to update the player movement */
+var bool DoElastoPostTouch;
 
 replication
 {
 	reliable if ( Role == ROLE_Authority )
-		MyController, fSickTime, fOrigSickTime,
+		fSickTime, fOrigSickTime,
 		fShroomDuration, bShroomsMode, smWanderSpeed, smAccel,
-		fElastoDuration, bElastoMode,  
+		fElastoDuration, bElastoMode, emInitialBounce, emBounce,
 		ClientShroomsMode, ClientElastoMode, AddHud;
 }
 
 event PreBeginPlay()
 {	
 	Super.PreBeginPlay();
-	if ( Role == ROLE_Authority )
-	{
-		MyController = xPlayer(Owner);
-		if (MyController == none) 
-		{
-			Error("My owner is not a xPlayer:"@Owner);
-			return;
-		}	
-	}	
+	enable('NotifyHitWall');
 }
 
-event Tick( float DeltaTime )
+event PlayerTick( float DeltaTime )
 {
-	local float Rot;
-
-	if (MyController == none) 
+	Super.PlayerTick(DeltaTime);
+	if (bElastoMode) // prevent FOV sixing
 	{
-		Destroy();
-		return;
+		DesiredFOV = emFov;
+		FOVAngle = emFov;
 	}
-
-	Super.Tick(DeltaTime);
-
-	if ((Role < ROLE_Authority) || (Level.NetMode != NM_DedicatedServer))
-	{
-		if (bShroomsMode) 
-		{
-			MyController.aMouseX = ShroomInput(MyController.aMouseX, DeltaTime, 0);
-			MyController.aMouseY = ShroomInput(MyController.aMouseY, DeltaTime, 1);
-		}
-	}
-
-	if (bElastoMode && false)
-	{
-		if (MyController.Pawn != none)
-		{
-			MyController.DesiredFOV = 130;
-			MyController.FOVAngle = 130;
-
-			Rot = float(MyController.Pawn.Rotation.Yaw)/65535.0*Pi*2.0;
-
-			emVelX += DeltaTime*Pi;
-			if (emVelX > pi*2) emVelX = pi*2-emVelX;
-			emVelY += DeltaTime*Pi;
-			if (emVelY > pi) emVelY = pi-emVelY;
-
-			MyController.Pawn.Velocity.X = 1000*sin(emVelX)*sin(rot)+1000*cos(rot);
-			MyController.Pawn.Velocity.Y = 1000*cos(emVelX)*cos(rot)+1000*sin(rot);
-			//MyController.Pawn.Velocity.z = sin(Pi*(fSickTime/fTotalSickTime))*50;
-
-			log(MyController.Pawn.Velocity);
-		}
-	}
-
-	if (fSickTime > 0)
-	{
-		fSickTime -= DeltaTime;
-		if (fSickTime <= 0) ResetBAMode();
-	}
+	if (fSickTime > 0) fSickTime -= DeltaTime;
+	if (fSickTime <= 0) ResetBAMode();
 }
 
 function bool isSick()
@@ -141,101 +100,111 @@ function ShroomsMode(optional bool bDisable)
 		fSickTime = fShroomDuration;
 		fOrigSickTime = fShroomDuration;
 	}
-	Log("ShroomsMode"@bShroomsMode);
+	//Log("ShroomsMode"@bShroomsMode);
 }
 
 /** activate shrooms mode on the client side */
 simulated function ClientShroomsMode(bool bEnabled)
 {
-	if (MyHud == none) AddHud();
+	if (MyBAHud == none) AddHud();
 	if (bEnabled) 
 	{		
-		smWanderSpeed = 0.4;
 		smWanderDirX = 1;
-		smWanderDirY = 1;
-		smAccel = 2.5;
+		smWanderDirY = 1;		
 		
 		if (smOverlay == none)
 		{
 			smOverlay = new() class'CameraOverlay';
 			smOverlay.OverlayMaterial = material'BadAdrenaline_tex.shroom.ShroomEffect';		
 		}
-		MyController.AddCameraEffect(smOverlay, true);
+		AddCameraEffect(smOverlay, true);
 
 		if (smBlur == none)
 		{
 			smBlur = new() class'MotionBlur';
 			smBlur.BlurAlpha = 127;
 		}
-		MyController.AddCameraEffect(smBlur, true);
+		AddCameraEffect(smBlur, true);
 		
-		MyHud.EffectImage = Material'BadAdrenaline_tex.HUD.HudMushRoom';
-		MyHud.ResetEffect();
+		MyBAHud.EffectImage = Material'BadAdrenaline_tex.HUD.HudMushRoom';
+		MyBAHud.ResetEffect();
 	}
 	else {
-		MyController.RemoveCameraEffect(smOverlay);
-		MyController.RemoveCameraEffect(smBlur);
+		RemoveCameraEffect(smOverlay);
+		RemoveCameraEffect(smBlur);
 	}
-	MyHud.bActive = bEnabled;
-	MyHud.bVisible = bEnabled;
-	Log("ClientShroomsMode"@bEnabled);
+	MyBAHud.bActive = bEnabled;
+	MyBAHud.bVisible = bEnabled;
+	//Log("ClientShroomsMode"@bEnabled);
 }
 
 /** activate elasto mode */
 function ElastoMode(optional bool bDisable)
 {
-	// Pawn.function AddVelocity( vector NewVelocity)
+	local float Rot;
 	bElastoMode = !bDisable;
 	ClientElastoMode(bElastoMode);
 	if (bElastoMode) 
 	{
-		PendingTouch = MyController.Pawn.PendingTouch;
-		MyController.Pawn.PendingTouch = self;
+		Rot = float(Pawn.Rotation.Yaw)/65535.0*Pi*2.0;
+		emDirection.X = cos(Rot) * (emInitialBounce * 0.75 + emInitialBounce * (0.5 * frand() - 0.25));
+		emDirection.Y = sin(Rot) * (emInitialBounce * 0.75 + emInitialBounce * (0.5 * frand() - 0.25));
+		emDirection.Z = 280;
+		PendingTouch = Pawn.PendingTouch;
+		Pawn.PendingTouch = self;
+		DoElastoPostTouch = true;
 
 		fSickTime = fElastoDuration;
 		fOrigSickTime = fElastoDuration;
 	}
-	Log("ElastoMode"@bElastoMode);
+	//Log("ElastoMode"@bElastoMode);
 }
 
 /** activate elasto mode on the client side */
 simulated function ClientElastoMode(bool bEnabled)
 {	
-	if (MyHud == none) AddHud();
+	if (MyBAHud == none) AddHud();
 	if (bEnabled) 
 	{
-		emLastFov = MyController.DesiredFOV;
-		//MyController.DesiredFOV = 130;
-		//MyController.FOVAngle = 130;
-		MyHud.EffectImage = Material'BadAdrenaline_tex.HUD.HudPinBall';
-		MyHud.ResetEffect();
+		emLastFov = DesiredFOV;
+		DesiredFOV = emFov;
+		FOVAngle = emFov;
+		MyBAHud.EffectImage = Material'BadAdrenaline_tex.HUD.HudPinBall';
+		MyBAHud.ResetEffect();
 	}
 	else {
-		MyController.DesiredFOV = emLastFov;
-		MyController.FOVAngle = emLastFov;
+		DesiredFOV = emLastFov;
+		FOVAngle = emLastFov;
 	}
-	MyHud.bActive = bEnabled;
-	MyHud.bVisible = bEnabled;
-	Log("ClientElastoMode"@bEnabled);
+	MyBAHud.bActive = bEnabled;
+	MyBAHud.bVisible = bEnabled;
+	//Log("ClientElastoMode"@bEnabled);
+}
+
+event bool NotifyHitWall(vector HitNormal, actor Wall)
+{
+	if (bElastoMode && (emLastVect != HitNormal))
+	{
+		emLastVect = HitNormal;
+		HitNormal *= emBounce;
+		emDirection.X = HitNormal.X;
+		emDirection.Y = HitNormal.Y;
+		emDirection.Z = HitNormal.Z;
+		if (emDirection.Z <= 0) emDirection.Z = 280;
+		PendingTouch = Pawn.PendingTouch;
+		Pawn.PendingTouch = self;
+		PlaySound( sound'BadAdrenaline.ElastoBounceSound', SLOT_Pain ); 
+	}
+	return Super.NotifyHitWall(HitNormal, Wall);
 }
 
 event PostTouch( Actor Other )
 {
-	local float Rot;
-	local vector pVect;
-	local xPawn myXPawn;
-
-	myXPawn = xPawn(MyController.Pawn);
-
-	Rot = float(MyController.Pawn.Rotation.Yaw)/65535.0*Pi*2.0;
-	pVect.X = cos(Rot) * 5000;
-	pVect.Y = sin(Rot) * 5000;
-	pVect.Z = 280;
-		
-	if ( myXPawn.Physics == PHYS_Walking ) myXPawn.SetPhysics(PHYS_Falling);
-
-	myXPawn.Velocity =  pVect;
-	myXPawn.Acceleration = vect(0,0,0);
+	Super.PostTouch(Other);
+	if (!DoElastoPostTouch) return;	
+	if ( Pawn.Physics == PHYS_Walking ) Pawn.SetPhysics(PHYS_Falling);
+	Pawn.Velocity =  emDirection;
+	Pawn.Acceleration = vect(0,0,0);
 }
 
 /** reset the currently active effect */
@@ -244,63 +213,27 @@ function ResetBAMode()
 	fSickTime = 0;
 	if (bShroomsMode) ShroomsMode(true);
 	if (bElastoMode) ElastoMode(true);
-	Log("ResetBAMode");
 }
 
+/** add out hud interaction */
 simulated function AddHud()
 {
 	if ( (Role < ROLE_Authority) || (Level.NetMode != NM_DedicatedServer))
 	{
-		MyHud = BAHUD(MyController.Player.InteractionMaster.AddInteraction(BAHUDClass, MyController.Player));
-		MyHud.BAC = Self;
+		MyBAHud = BAHUD(Player.InteractionMaster.AddInteraction(BAHUDClass, Player));
+		MyBAHud.BAC = Self;
 	}
 }
 
-/** shrooms mode over the players input */
-function float ShroomInput(float aMouse, float DeltaTime, int Index)
+state Dead
 {
-	if (index == 0)
-	{
-		if (smWanderDirX != 0) smMouseWanderX += DeltaTime*smAccel;
-		if (smMouseWanderX > pi*2) smMouseWanderX = pi*2-smMouseWanderX;
-		aMouse += smWanderDirX*cos(smMouseWanderX)*smWanderSpeed;		
-	}
-	else {
-		if (smWanderDirY != 0) smMouseWanderY += DeltaTime*smAccel;
-		if (smMouseWanderY > pi*2) smMouseWanderY = pi*2-smMouseWanderY;
-		aMouse += smWanderDirY*cos(smMouseWanderY)*smWanderSpeed;
-	}
-
-	if ((sin(smMouseWanderX) > 0.9) && (sin(smMouseWanderY) > 0.9))
-	{
-		smWanderDirX = 0;
-		smWanderDirY = 1;
-	}
-	else if ((sin(smMouseWanderX) < -0.9) && (sin(smMouseWanderY) < -0.9))
-	{
-		smWanderDirX = 1;
-		smWanderDirY = 1;
-	}
-	else if ((sin(smMouseWanderX) < -0.9) && (sin(smMouseWanderY) > 0.9))
-	{
-		smWanderDirX = 0;
-		smWanderDirY = 1;
-	}
-	else if ((sin(smMouseWanderX) > 0.9) && (sin(smMouseWanderY) < -0.9))
-	{
-		smWanderDirX = 1;
-		smWanderDirY = 1;
-	}
-	return aMouse;
+begin:
+	if (bResetOnDeath) ResetBAMode();
 }
 
 defaultproperties
 {
-	bAlwaysRelevant=true
-	RemoteRole=ROLE_AutonomousProxy
-
+	MinHitWall=1
 	BAHUDClass="BadAdrenaline.BAHUD"
-
-	fShroomDuration=30
-	fElastoDuration=30
+	InputClass=class'BadAdrenaline.BAInput'
 }

@@ -3,10 +3,10 @@
 // possible contaminated adrenaline pickup
 //
 // Copyright 2003, Michiel "El Muerte" Hendriks
-// $Id: BAdrenalinePickup.uc,v 1.5 2003/10/12 10:21:47 elmuerte Exp $
+// $Id: BAdrenalinePickup.uc,v 1.6 2003/10/12 20:06:21 elmuerte Exp $
 ////////////////////////////////////////////////////////////////////////////////
 
-class BAdrenalinePickup extends AdrenalinePickup config;
+class BAdrenalinePickup extends AdrenalinePickup;
 
 #exec OBJ LOAD FILE=BadAdrenaline_tex.utx
 
@@ -26,9 +26,10 @@ struct SERange
 	var float max;
 };
 /** side effect configuration, BASE_none is used if there's no match */
-var config array<SERange> SEConfig;
+var array<SERange> SEConfig;
 
-var config byte VisualNotification;
+/** how to display a bad adrenaline pill */
+var byte VisualNotification;
 
 /** current side effect */
 var BASideEffect SideEffect;
@@ -43,7 +44,7 @@ auto state Pickup
 			
 		if ( ValidTouch(Other) ) 
 		{
-			BAC = FindBAController(Pawn(Other).Controller);
+			BAC = BAController(Pawn(Other).Controller);
 			if (BAC == none) Super.Touch(Other);
 			else {
 				switch (SideEffect)
@@ -103,16 +104,7 @@ function SetSideEffect()
 		else RepSkin = none;
 		/*if (Level.NetMode != NM_DedicatedServer)*/ Skins[0] = RepSkin;
 	}	
-	Log("SideEffect ="@SideEffect@f@RepSkin@Skins[0]);
-}
-
-/** find the BAController for the picking up actor */
-function BAController FindBAController(Controller ctlr)
-{
-	local BAController tempBAC;
-	foreach DynamicActors(Class'BAController', tempBAC)
-		if (tempBAC.MyController == ctlr) return tempBAC;
-	return None;
+	//Log("SideEffect ="@SideEffect@f@RepSkin@Skins[0]);
 }
 
 /** directly send the localized message */
@@ -122,17 +114,8 @@ function AnnouncePickupEx(Controller ctlr, BASideEffect effect)
 	PlayerController(ctlr).ReceiveLocalizedMessage(MessageClassEx, effect, , , class);
 }
 
-simulated event PostNetReceive()
-{
-	if (Role < ROLE_Authority) Log(RepSkin@Skins[0]);
-}
-
 defaultproperties
 {
 	RemoteRole=ROLE_SimulatedProxy
-	MessageClassEx=class'BAPickupMessage'
-
-	//SEConfig(0)=(Effect=BASE_Shroom,Min=0,Max=0.25)
-	SEConfig(1)=(Effect=BASE_Elasto,Min=0.0,Max=0.75)
-	VisualNotification=4
+	MessageClassEx=class'BAPickupMessage'	
 }
