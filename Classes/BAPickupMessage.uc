@@ -3,7 +3,7 @@
 // client side notification message
 //
 // Copyright 2003, Michiel "El Muerte" Hendriks
-// $Id: BAPickupMessage.uc,v 1.1 2003/10/12 10:21:47 elmuerte Exp $
+// $Id: BAPickupMessage.uc,v 1.2 2003/10/14 10:56:46 elmuerte Exp $
 ////////////////////////////////////////////////////////////////////////////////
 
 class BAPickupMessage extends PickupMessagePlus;
@@ -19,8 +19,8 @@ static function string GetString(
 {
 	switch(SwitchNum)
 	{
-		case 1: return Default.msgShroomsMode;
-		case 2: return Default.msgElastoMode;
+		case 1: return Caps(Default.msgShroomsMode)@" !!!";
+		case 2: return Caps(Default.msgElastoMode)@" !!!";
 	}
 	return "";
 }
@@ -30,6 +30,6 @@ defaultproperties
 	PosY=0.75
 	DrawColor=(R=0,G=255,B=0,A=255)
 
-	msgShroomsMode="SHROOMS MODE !!!"
-	msgElastoMode="ELASTO MODE !!!"
+	msgShroomsMode="Shrooms Mode"
+	msgElastoMode="Elasto Mode"
 }

@@ -3,7 +3,7 @@
 // The new player controller to screw with your game
 //
 // Copyright 2003, Michiel "El Muerte" Hendriks
-// $Id: BAController.uc,v 1.8 2003/10/13 12:55:44 elmuerte Exp $
+// $Id: BAController.uc,v 1.9 2003/10/14 10:56:46 elmuerte Exp $
 ////////////////////////////////////////////////////////////////////////////////
 
 class BAController extends xPlayer;
@@ -78,6 +78,8 @@ event PreBeginPlay()
 {	
 	Super.PreBeginPlay();
 	enable('NotifyHitWall');	
+	enable('NotifyLanded');	
+	enable('NotifyHitMover');
 }
 
 event BeginPlay()
@@ -230,9 +232,55 @@ event bool NotifyHitWall(vector HitNormal, actor Wall)
 		if (emDirection.Z <= 0) emDirection.Z = 280;
 		PendingTouch = Pawn.PendingTouch;
 		Pawn.PendingTouch = self;
-		PlaySound( sound'BadAdrenaline.ElastoBounceSound', SLOT_Talk ); 
+		PlayOwnedSound( sound'BadAdrenaline.ElastoBounceSound', SLOT_Interact ); 
 	}
 	return Super.NotifyHitWall(HitNormal, Wall);
+}
+
+event NotifyHitMover(vector HitNormal, mover Wall)
+{
+	if (bElastoMode && (emLastVect != HitNormal))
+	{
+		emLastVect = HitNormal;
+		HitNormal *= emBounce;
+		emDirection.X = HitNormal.X;
+		emDirection.Y = HitNormal.Y;
+		emDirection.Z = HitNormal.Z;
+		if (emDirection.Z <= 0) emDirection.Z = 280;
+		PendingTouch = Pawn.PendingTouch;
+		Pawn.PendingTouch = self;
+		PlayOwnedSound( sound'BadAdrenaline.ElastoBounceSound', SLOT_Interact ); 
+	}
+	Super.NotifyHitWall(HitNormal, Wall);
+}
+
+event bool NotifyLanded(vector HitNormal)
+{
+	if (bElastoMode)
+	{
+		if (emLastVect != HitNormal)
+		{
+			emLastVect = HitNormal;
+			HitNormal *= emBounce/2;
+			emDirection.X = HitNormal.X;
+			emDirection.Y = HitNormal.Y;
+			emDirection.Z = HitNormal.Z;
+			if (emDirection.Z <= 0) emDirection.Z = 280;
+		}
+		else {
+			emDirection.Z *= 0.66;
+		}
+		if (emDirection.Z > 100)
+		{
+			PendingTouch = Pawn.PendingTouch;
+			Pawn.PendingTouch = self;
+			PlayOwnedSound( sound'BadAdrenaline.ElastoBounceSound', SLOT_Interact ); 
+		}
+		else {
+			emLastVect = vect(0,0,0);
+		}
+	}
+	return Super.NotifyLanded(HitNormal);
 }
 
 event PostTouch( Actor Other )

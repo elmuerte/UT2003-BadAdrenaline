@@ -3,7 +3,7 @@
 // Change the default playercontroller class
 //
 // Copyright 2003, Michiel "El Muerte" Hendriks
-// $Id: BAmut.uc,v 1.4 2003/10/13 12:55:44 elmuerte Exp $
+// $Id: BAmut.uc,v 1.5 2003/10/14 10:56:46 elmuerte Exp $
 ////////////////////////////////////////////////////////////////////////////////
 
 class BAmut extends Mutator config;
@@ -86,6 +86,11 @@ event PreBeginPlay()
 	Log("~> Done!", 'BadAdrenaline');
 }
 
+static function int BASideEffectCount()
+{
+	return BASideEffect.EnumCount;
+}
+
 function bool CheckReplacement(Actor Other, out byte bSuperRelevant)
 {
 	bSuperRelevant = 0;
@@ -119,12 +124,12 @@ defaultproperties
 	FriendlyName="Bad Adrenaline"
 	Description="Some adrenaline got bad, so watch out for them"
 	GroupName="Controller Mod"
-	ConfigMenuClassName=""
+	ConfigMenuClassName="BadAdrenaline.BAconfig"
 
 	BAControllerClassName="BadAdrenaline.BAController"
 	BadAdrenalineClassName="BadAdrenaline.BAdrenalinePickup"
 
-	msgSettingDesc[0]="Reset of death"
+	msgSettingDesc[0]="Reset on death"
 	msgSettingDesc[1]="Shroom Mode duration"
 	msgSettingDesc[2]="Shroom Mode speed"
 	msgSettingDesc[3]="Shroom Mode acceleration"
