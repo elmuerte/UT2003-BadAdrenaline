@@ -3,7 +3,7 @@
 // change the mouse movement
 //
 // Copyright 2003, Michiel "El Muerte" Hendriks
-// $Id: BAInput.uc,v 1.3 2003/10/12 20:07:16 elmuerte Exp $
+// $Id: BAInput.uc,v 1.4 2003/10/13 12:55:44 elmuerte Exp $
 ////////////////////////////////////////////////////////////////////////////////
 
 class BAInput extends PlayerInput;
@@ -17,6 +17,7 @@ function float SmoothMouse(float aMouse, float DeltaTime, out byte SampleCount, 
 
   me = BAcontroller(outer);
   aMouse = Super.SmoothMouse(aMouse, DeltaTime, SampleCount, Index);
+
   if (!me.bShroomsMode) return aMouse;
 
   if (index == 0)

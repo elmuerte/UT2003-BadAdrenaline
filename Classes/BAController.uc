@@ -3,7 +3,7 @@
 // The new player controller to screw with your game
 //
 // Copyright 2003, Michiel "El Muerte" Hendriks
-// $Id: BAController.uc,v 1.7 2003/10/12 20:06:21 elmuerte Exp $
+// $Id: BAController.uc,v 1.8 2003/10/13 12:55:44 elmuerte Exp $
 ////////////////////////////////////////////////////////////////////////////////
 
 class BAController extends xPlayer;
@@ -22,17 +22,17 @@ var float fSickTime;
 var float fOrigSickTime;
 
 /** reset effects when the player died */
-var bool bResetOnDeath;
+var bool bResetOnDeath, defbResetOnDeath;
 
 //// SHROOMS MODE ////
 /** duration fo shrooms mode */
-var float fShroomDuration;
+var float fShroomDuration, deffShroomDuration;
 /** true if in shrooms mode */
 var bool bShroomsMode;
 /** the amplitude */
-var float smWanderSpeed;
+var float smWanderSpeed, defsmWanderSpeed;
 /** the acceleration */
-var float smAccel;
+var float smAccel, defsmAccel;
 /** direction */
 var float smWanderDirX, smWanderDirY;
 /** last change */
@@ -44,15 +44,15 @@ var MotionBlur smBlur;
 
 //// ELASTO MODE ////
 /** duration of elasto mode */
-var float fElastoDuration;
+var float fElastoDuration, deffElastoDuration;
 /** true if in elasto mode */
 var bool bElastoMode;
 /** settings to bounce the player around */
-var float emInitialBounce, emBounce;
+var float emInitialBounce, emBounce, defemInitialBounce, defemBounce;
 /** the direction to hurl the player at */
 var vector emDirection, emLastVect;
 /** the fov when Elasto Mode is active */
-var int emFov;
+var int emFov, defemFov;
 /** the last FOV */
 var int emLastFov;
 /** set to true when to update the player movement */
@@ -60,29 +60,65 @@ var bool DoElastoPostTouch;
 
 replication
 {
-	reliable if ( Role == ROLE_Authority )
-		fSickTime, fOrigSickTime,
-		fShroomDuration, bShroomsMode, smWanderSpeed, smAccel,
-		fElastoDuration, bElastoMode, emInitialBounce, emBounce,
+	reliable if ( Role == ROLE_Authority )		
+		fShroomDuration, smWanderSpeed, smAccel,
+		fElastoDuration, emInitialBounce, emBounce, emFov,
 		ClientShroomsMode, ClientElastoMode, AddHud;
+
+	unreliable if ( Role == ROLE_Authority )
+		fSickTime, fOrigSickTime;
+	reliable if ( Role == ROLE_Authority )
+		bShroomsMode, bElastoMode;
+
+	reliable if ( Role < ROLE_Authority )
+		ElastoMode, ShroomsMode, ResetBAMode;
 }
 
 event PreBeginPlay()
 {	
 	Super.PreBeginPlay();
-	enable('NotifyHitWall');
+	enable('NotifyHitWall');	
+}
+
+event BeginPlay()
+{
+	bResetOnDeath = default.defbResetOnDeath;
+	fShroomDuration = default.deffShroomDuration;
+	smWanderSpeed = default.defsmWanderSpeed;
+	smAccel = default.defsmAccel;
+	fElastoDuration = default.deffElastoDuration;
+	emInitialBounce = default.defemInitialBounce;
+	emBounce = default.defemBounce;
+	emFov = default.defemFov;
 }
 
 event PlayerTick( float DeltaTime )
 {
-	Super.PlayerTick(DeltaTime);
-	if (bElastoMode) // prevent FOV sixing
+	local BAdrenalinePickup BAP;
+
+	Super.PlayerTick(DeltaTime);	
+
+	if (bElastoMode) // prevent FOV fixing
 	{
-		DesiredFOV = emFov;
-		FOVAngle = emFov;
+		SetFOV(emFov);
 	}
-	if (fSickTime > 0) fSickTime -= DeltaTime;
-	if (fSickTime <= 0) ResetBAMode();
+	if (fSickTime > 0) 
+	{
+		fSickTime -= DeltaTime;
+		if (fSickTime <= 0) ResetBAMode();
+	}
+
+	// directy hack to fix skin replication
+	foreach DynamicActors(Class'BAdrenalinePickup', BAP)
+	{
+		if (BAP.SideEffect != BASE_none)
+		{
+			if (BAP.Skins.length <= 0 && BAP.VisualNotification > 0) 
+			{
+				BAP.SetEffectSkin();
+			}
+		}
+	}
 }
 
 function bool isSick()
@@ -95,7 +131,7 @@ function ShroomsMode(optional bool bDisable)
 {
 	bShroomsMode = !bDisable;
 	ClientShroomsMode(bShroomsMode);
-	if (bShroomsMode) 
+	if (bShroomsMode)
 	{
 		fSickTime = fShroomDuration;
 		fOrigSickTime = fShroomDuration;
@@ -108,7 +144,7 @@ simulated function ClientShroomsMode(bool bEnabled)
 {
 	if (MyBAHud == none) AddHud();
 	if (bEnabled) 
-	{		
+	{
 		smWanderDirX = 1;
 		smWanderDirY = 1;		
 		
@@ -152,10 +188,13 @@ function ElastoMode(optional bool bDisable)
 		emDirection.Z = 280;
 		PendingTouch = Pawn.PendingTouch;
 		Pawn.PendingTouch = self;
-		DoElastoPostTouch = true;
+		DoElastoPostTouch = true;		
 
 		fSickTime = fElastoDuration;
 		fOrigSickTime = fElastoDuration;
+	}
+	else {
+		
 	}
 	//Log("ElastoMode"@bElastoMode);
 }
@@ -167,14 +206,12 @@ simulated function ClientElastoMode(bool bEnabled)
 	if (bEnabled) 
 	{
 		emLastFov = DesiredFOV;
-		DesiredFOV = emFov;
-		FOVAngle = emFov;
+		SetFOV(emFov);
 		MyBAHud.EffectImage = Material'BadAdrenaline_tex.HUD.HudPinBall';
 		MyBAHud.ResetEffect();
 	}
 	else {
-		DesiredFOV = emLastFov;
-		FOVAngle = emLastFov;
+		SetFOV(emLastFov);
 	}
 	MyBAHud.bActive = bEnabled;
 	MyBAHud.bVisible = bEnabled;
@@ -193,7 +230,7 @@ event bool NotifyHitWall(vector HitNormal, actor Wall)
 		if (emDirection.Z <= 0) emDirection.Z = 280;
 		PendingTouch = Pawn.PendingTouch;
 		Pawn.PendingTouch = self;
-		PlaySound( sound'BadAdrenaline.ElastoBounceSound', SLOT_Pain ); 
+		PlaySound( sound'BadAdrenaline.ElastoBounceSound', SLOT_Talk ); 
 	}
 	return Super.NotifyHitWall(HitNormal, Wall);
 }
@@ -213,6 +250,7 @@ function ResetBAMode()
 	fSickTime = 0;
 	if (bShroomsMode) ShroomsMode(true);
 	if (bElastoMode) ElastoMode(true);
+	//Log("ResetBAMode");
 }
 
 /** add out hud interaction */

@@ -3,10 +3,10 @@
 // Change the default playercontroller class
 //
 // Copyright 2003, Michiel "El Muerte" Hendriks
-// $Id: BAmut.uc,v 1.3 2003/10/12 20:06:21 elmuerte Exp $
+// $Id: BAmut.uc,v 1.4 2003/10/13 12:55:44 elmuerte Exp $
 ////////////////////////////////////////////////////////////////////////////////
 
-class BAmut extends Mutator config dependson(BAdrenalinePickup);
+class BAmut extends Mutator config;
 
 const VERSION = "100";
 
@@ -20,6 +20,22 @@ var config string BadAdrenalineClassName;
 /** out new playercontroller class */
 var config string BAControllerClassName;
 
+/** the available side effects */
+enum BASideEffect
+{
+	BASE_None,
+	BASE_Shroom,
+	BASE_Elasto,
+};
+
+/** side effect configuration, BASE_none is used if there's no match */
+struct SERange
+{
+	var BASideEffect effect;
+	var float	min;
+	var float	max;
+};
+
 //// external config variable
 // BAController
 var config bool bResetOnDeath;
@@ -30,7 +46,7 @@ var config float fElastoDuration;
 var config float emInitialBounce, emBounce;
 var config int emFov;
 // BAdrenalinePickup
-var config array<BAdrenalinePickup.SERange> SEConfig;
+var config array<SERange> SEConfig;
 var config byte VisualNotification;
 
 event PreBeginPlay()
@@ -41,21 +57,21 @@ event PreBeginPlay()
 	Log("~> Loading Bad Adrenaline version"@VERSION@"...", 'BadAdrenaline');
 	Log("~> (c) 2003 Michiel 'El Muerte' Hendriks", 'BadAdrenaline');
 	Level.Game.PlayerControllerClassName = BAControllerClassName;
+
 	if ( Level.Game.PlayerControllerClass == None )
 		Level.Game.PlayerControllerClass = class<PlayerController>(DynamicLoadObject(Level.Game.PlayerControllerClassName, class'Class'));
 	
 	BAC = class<BAController>(Level.Game.PlayerControllerClass);
 	if (BAC != none)
 	{
-		BAC.default.bResetOnDeath = bResetOnDeath;
-		BAC.default.fShroomDuration = fShroomDuration;
-		BAC.default.smWanderSpeed = smWanderSpeed;
-		BAC.default.smAccel = smAccel;
-		BAC.default.fElastoDuration = fElastoDuration;
-		BAC.default.emInitialBounce = emInitialBounce;
-		BAC.default.emInitialBounce = emInitialBounce;
-		BAC.default.emBounce = emBounce;
-		BAC.default.emFov = emFov;
+		BAC.default.defbResetOnDeath = bResetOnDeath;
+		BAC.default.deffShroomDuration = fShroomDuration;
+		BAC.default.defsmWanderSpeed = smWanderSpeed;
+		BAC.default.defsmAccel = smAccel;
+		BAC.default.deffElastoDuration = fElastoDuration;
+		BAC.default.defemInitialBounce = emInitialBounce;
+		BAC.default.defemBounce = emBounce;
+		BAC.default.defemFov = emFov;
 	}
 	else Log("~> Error: BAController not configured", 'BadAdrenaline');
 
@@ -63,7 +79,7 @@ event PreBeginPlay()
 	if (BAP != none)
 	{
 		BAP.default.SEConfig = SEConfig;
-		BAP.default.VisualNotification = VisualNotification;
+		BAP.default.defVisualNotification = VisualNotification;
 	}
 	else Log("~> Error: BAdrenalinePickup not configured", 'BadAdrenaline');
 

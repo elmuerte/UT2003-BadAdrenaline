@@ -3,38 +3,43 @@
 // possible contaminated adrenaline pickup
 //
 // Copyright 2003, Michiel "El Muerte" Hendriks
-// $Id: BAdrenalinePickup.uc,v 1.6 2003/10/12 20:06:21 elmuerte Exp $
+// $Id: BAdrenalinePickup.uc,v 1.7 2003/10/13 12:55:44 elmuerte Exp $
 ////////////////////////////////////////////////////////////////////////////////
 
-class BAdrenalinePickup extends AdrenalinePickup;
+class BAdrenalinePickup extends AdrenalinePickup dependson(BAmut);
 
 #exec OBJ LOAD FILE=BadAdrenaline_tex.utx
 
-/** the available side effects */
-enum BASideEffect
-{
-	BASE_None,
-	BASE_Shroom,
-	BASE_Elasto,
-};
-
 /** side effect configuration, BASE_none is used if there's no match */
-struct SERange
-{
-	var BASideEffect effect;
-	var float min;
-	var float max;
-};
-/** side effect configuration, BASE_none is used if there's no match */
-var array<SERange> SEConfig;
+var array<BAmut.SERange> SEConfig;
 
 /** how to display a bad adrenaline pill */
-var byte VisualNotification;
+var byte VisualNotification, defVisualNotification;
 
 /** current side effect */
-var BASideEffect SideEffect;
+var BAmut.BASideEffect SideEffect;
 /** special local message for the side effects */
 var class<PickupMessagePlus> MessageClassEx;
+
+replication
+{
+	reliable if (Role == ROLE_Authority)
+		VisualNotification, SideEffect, SetEffectSkin;
+}
+
+event BeginPlay()
+{
+	VisualNotification = default.defVisualNotification;
+}
+
+simulated function UpdatePrecacheMaterials()
+{
+	Super.UpdatePrecacheMaterials();
+	Level.AddPrecacheMaterial(Material'BadAdrenaline_tex.BA.BALevel1');
+	Level.AddPrecacheMaterial(Material'BadAdrenaline_tex.BA.BALevel2');
+	Level.AddPrecacheMaterial(Material'BadAdrenaline_tex.BA.BALevel3');
+	Level.AddPrecacheMaterial(Material'BadAdrenaline_tex.BA.BALevel4');
+}
 
 auto state Pickup
 {	
@@ -89,6 +94,19 @@ function SetSideEffect()
 			break;
 		}
 	}
+	SetEffectSkin();
+	//Log("SideEffect ="@SideEffect@f@RepSkin@VisualNotification);
+}
+
+/** directly send the localized message */
+function AnnouncePickupEx(Controller ctlr, BAmut.BASideEffect effect)
+{
+	if (PlayerController(ctlr) == none) return;
+	PlayerController(ctlr).ReceiveLocalizedMessage(MessageClassEx, effect, , , class);
+}
+
+simulated function SetEffectSkin()
+{
 	if (VisualNotification > 0)
 	{
 		if (SideEffect != BASE_None)
@@ -102,16 +120,8 @@ function SetSideEffect()
 			}			
 		}
 		else RepSkin = none;
-		/*if (Level.NetMode != NM_DedicatedServer)*/ Skins[0] = RepSkin;
+		if (Level.NetMode != NM_DedicatedServer) Skins[0] = RepSkin;
 	}	
-	//Log("SideEffect ="@SideEffect@f@RepSkin@Skins[0]);
-}
-
-/** directly send the localized message */
-function AnnouncePickupEx(Controller ctlr, BASideEffect effect)
-{
-	if (PlayerController(ctlr) == none) return;
-	PlayerController(ctlr).ReceiveLocalizedMessage(MessageClassEx, effect, , , class);
 }
 
 defaultproperties
