@@ -3,7 +3,7 @@
 // The new player controller to screw with your game
 //
 // Copyright 2003, Michiel "El Muerte" Hendriks
-// $Id: BAController.uc,v 1.4 2003/10/11 16:03:02 elmuerte Exp $
+// $Id: BAController.uc,v 1.5 2003/10/12 10:21:47 elmuerte Exp $
 ////////////////////////////////////////////////////////////////////////////////
 
 class BAController extends Info;
@@ -89,6 +89,12 @@ event Tick( float DeltaTime )
 		}
 	}
 
+	if (bShroomsMode)
+	{
+		log(MyController.Velocity);
+		//MyController.Velocity = 
+	}
+
 	if (fSickTime > 0)
 	{
 		fSickTime -= DeltaTime;
@@ -156,6 +162,7 @@ function ElastoMode(optional bool bDisable)
 {
 	// Pawn.function AddVelocity( vector NewVelocity)
 	bElastoMode = !bDisable;
+	ClientElastoMode(bShroomsMode);
 	if (bElastoMode) 
 	{
 		fSickTime = fElastoDuration;
@@ -170,6 +177,9 @@ simulated function ClientElastoMode(bool bEnabled)
 	if (MyHud == none) AddHud();
 	if (bEnabled) 
 	{
+
+		MyHud.EffectImage = Material'BadAdrenaline_tex.HUD.HudPinBall';
+		MyHud.ResetEffect();
 	}
 	else {
 	}

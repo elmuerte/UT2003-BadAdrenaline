@@ -3,7 +3,7 @@
 // possible contaminated adrenaline pickup
 //
 // Copyright 2003, Michiel "El Muerte" Hendriks
-// $Id: BAdrenalinePickup.uc,v 1.4 2003/10/11 16:03:02 elmuerte Exp $
+// $Id: BAdrenalinePickup.uc,v 1.5 2003/10/12 10:21:47 elmuerte Exp $
 ////////////////////////////////////////////////////////////////////////////////
 
 class BAdrenalinePickup extends AdrenalinePickup config;
@@ -32,6 +32,8 @@ var config byte VisualNotification;
 
 /** current side effect */
 var BASideEffect SideEffect;
+/** special local message for the side effects */
+var class<PickupMessagePlus> MessageClassEx;
 
 auto state Pickup
 {	
@@ -50,12 +52,14 @@ auto state Pickup
 						if (BAC.isSick()) return; // don't pickup
 						PlaySound( sound'BadAdrenaline.ShroomsModeSound' , SLOT_Interact ); 
 						BAC.ShroomsMode();
+						AnnouncePickupEx(Pawn(Other).Controller, SideEffect);
 						SetRespawn();
 						break;
 					case BASE_Elasto:	
 						if (BAC.isSick()) return; // don't pickup
 						PlaySound( sound'BadAdrenaline.ElastoModeSound' , SLOT_Interact ); 
 						BAC.ElastoMode();
+						AnnouncePickupEx(Pawn(Other).Controller, SideEffect);
 						SetRespawn();
 						break;
 					default: Super.Touch(Other);
@@ -97,7 +101,7 @@ function SetSideEffect()
 			}			
 		}
 		else RepSkin = none;
-		if (Level.NetMode != NM_DedicatedServer) Skins[0]=RepSkin;
+		/*if (Level.NetMode != NM_DedicatedServer)*/ Skins[0] = RepSkin;
 	}	
 	Log("SideEffect ="@SideEffect@f@RepSkin@Skins[0]);
 }
@@ -111,9 +115,24 @@ function BAController FindBAController(Controller ctlr)
 	return None;
 }
 
+/** directly send the localized message */
+function AnnouncePickupEx(Controller ctlr, BASideEffect effect)
+{
+	if (PlayerController(ctlr) == none) return;
+	PlayerController(ctlr).ReceiveLocalizedMessage(MessageClassEx, effect, , , class);
+}
+
+simulated event PostNetReceive()
+{
+	if (Role < ROLE_Authority) Log(RepSkin@Skins[0]);
+}
+
 defaultproperties
 {
-	SEConfig(0)=(Effect=BASE_Shroom,Min=0,Max=0.55)
-	//SEConfig(1)=(Effect=BASE_Elasto,Min=0.25,Max=0.5)
+	RemoteRole=ROLE_SimulatedProxy
+	MessageClassEx=class'BAPickupMessage'
+
+	//SEConfig(0)=(Effect=BASE_Shroom,Min=0,Max=0.25)
+	SEConfig(1)=(Effect=BASE_Elasto,Min=0.0,Max=0.75)
 	VisualNotification=4
 }
