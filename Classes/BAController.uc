@@ -3,7 +3,7 @@
 // The new player controller to screw with your game
 //
 // Copyright 2003, Michiel "El Muerte" Hendriks
-// $Id: BAController.uc,v 1.5 2003/10/12 10:21:47 elmuerte Exp $
+// $Id: BAController.uc,v 1.6 2003/10/12 14:12:54 elmuerte Exp $
 ////////////////////////////////////////////////////////////////////////////////
 
 class BAController extends Info;
@@ -46,6 +46,12 @@ var MotionBlur smBlur;
 var float fElastoDuration;
 /** true if in elasto mode */
 var bool bElastoMode;
+/** */
+var float emVelX, emVelY;
+/** */
+var int emLastFov;
+/** */
+var EPhysics emLastPhys;
 
 replication
 {
@@ -72,6 +78,8 @@ event PreBeginPlay()
 
 event Tick( float DeltaTime )
 {
+	local float Rot;
+
 	if (MyController == none) 
 	{
 		Destroy();
@@ -89,10 +97,26 @@ event Tick( float DeltaTime )
 		}
 	}
 
-	if (bShroomsMode)
+	if (bElastoMode && false)
 	{
-		log(MyController.Velocity);
-		//MyController.Velocity = 
+		if (MyController.Pawn != none)
+		{
+			MyController.DesiredFOV = 130;
+			MyController.FOVAngle = 130;
+
+			Rot = float(MyController.Pawn.Rotation.Yaw)/65535.0*Pi*2.0;
+
+			emVelX += DeltaTime*Pi;
+			if (emVelX > pi*2) emVelX = pi*2-emVelX;
+			emVelY += DeltaTime*Pi;
+			if (emVelY > pi) emVelY = pi-emVelY;
+
+			MyController.Pawn.Velocity.X = 1000*sin(emVelX)*sin(rot)+1000*cos(rot);
+			MyController.Pawn.Velocity.Y = 1000*cos(emVelX)*cos(rot)+1000*sin(rot);
+			//MyController.Pawn.Velocity.z = sin(Pi*(fSickTime/fTotalSickTime))*50;
+
+			log(MyController.Pawn.Velocity);
+		}
 	}
 
 	if (fSickTime > 0)
@@ -162,9 +186,12 @@ function ElastoMode(optional bool bDisable)
 {
 	// Pawn.function AddVelocity( vector NewVelocity)
 	bElastoMode = !bDisable;
-	ClientElastoMode(bShroomsMode);
+	ClientElastoMode(bElastoMode);
 	if (bElastoMode) 
 	{
+		PendingTouch = MyController.Pawn.PendingTouch;
+		MyController.Pawn.PendingTouch = self;
+
 		fSickTime = fElastoDuration;
 		fOrigSickTime = fElastoDuration;
 	}
@@ -173,19 +200,42 @@ function ElastoMode(optional bool bDisable)
 
 /** activate elasto mode on the client side */
 simulated function ClientElastoMode(bool bEnabled)
-{
+{	
 	if (MyHud == none) AddHud();
 	if (bEnabled) 
 	{
-
+		emLastFov = MyController.DesiredFOV;
+		//MyController.DesiredFOV = 130;
+		//MyController.FOVAngle = 130;
 		MyHud.EffectImage = Material'BadAdrenaline_tex.HUD.HudPinBall';
 		MyHud.ResetEffect();
 	}
 	else {
+		MyController.DesiredFOV = emLastFov;
+		MyController.FOVAngle = emLastFov;
 	}
 	MyHud.bActive = bEnabled;
 	MyHud.bVisible = bEnabled;
 	Log("ClientElastoMode"@bEnabled);
+}
+
+event PostTouch( Actor Other )
+{
+	local float Rot;
+	local vector pVect;
+	local xPawn myXPawn;
+
+	myXPawn = xPawn(MyController.Pawn);
+
+	Rot = float(MyController.Pawn.Rotation.Yaw)/65535.0*Pi*2.0;
+	pVect.X = cos(Rot) * 5000;
+	pVect.Y = sin(Rot) * 5000;
+	pVect.Z = 280;
+		
+	if ( myXPawn.Physics == PHYS_Walking ) myXPawn.SetPhysics(PHYS_Falling);
+
+	myXPawn.Velocity =  pVect;
+	myXPawn.Acceleration = vect(0,0,0);
 }
 
 /** reset the currently active effect */
