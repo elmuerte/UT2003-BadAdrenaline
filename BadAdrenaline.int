@@ -1,0 +1,2 @@
+[Public]
+Object=(Class=Class,MetaClass=Engine.Mutator,Name=BadAdrenaline.BAmut,Description="Some adrenaline got bad, so watch out for them.")
