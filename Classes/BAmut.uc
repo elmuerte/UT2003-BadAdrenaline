@@ -3,7 +3,7 @@
 // Change the default playercontroller class
 //
 // Copyright 2003, Michiel "El Muerte" Hendriks
-// $Id: BAmut.uc,v 1.1 2003/10/10 08:00:46 elmuerte Exp $
+// $Id: BAmut.uc,v 1.2 2003/10/11 12:34:08 elmuerte Exp $
 ////////////////////////////////////////////////////////////////////////////////
 
 class BAmut extends Mutator config;
@@ -16,10 +16,21 @@ var config string BadAdrenalineClassName;
 event PreBeginPlay()
 {
 	Log("~> Loading Bad Adrenaline version"@VERSION@"...", 'BadAdrenaline');
-	Level.Game.PlayerControllerClassName = "BadAdrenaline.BAController";
-
-
+	
 	Log("~> Done!", 'BadAdrenaline');
+}
+
+function ModifyPlayer(Pawn Other)
+{
+	local BAController tempBAC;	
+	Super.ModifyPlayer(Other);
+
+	if (xPlayer(Other.Controller) != none)
+	{
+		foreach DynamicActors(Class'BAController', tempBAC)	if (tempBAC.MyController == Other.Controller) return;
+		Log("ModifyPlayer"@Other);
+		spawn(class'BAController', Other.Controller);
+	}
 }
 
 function bool CheckReplacement(Actor Other, out byte bSuperRelevant)

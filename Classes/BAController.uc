@@ -3,15 +3,17 @@
 // The new player controller to screw with your game
 //
 // Copyright 2003, Michiel "El Muerte" Hendriks
-// $Id: BAController.uc,v 1.2 2003/10/10 14:01:39 elmuerte Exp $
+// $Id: BAController.uc,v 1.3 2003/10/11 12:34:08 elmuerte Exp $
 ////////////////////////////////////////////////////////////////////////////////
 
-class BAController extends xPlayer;
+class BAController extends Info;
 
 #exec OBJ LOAD FILE=BadAdrenaline_tex.utx
 
 #exec AUDIO IMPORT FILE="Sounds\ShroomsMode.wav" NAME="ShroomsModeSound"
 #exec AUDIO IMPORT FILE="Sounds\ElastoMode.wav" NAME="ElastoModeSound"
+
+var xPlayer MyController;
 
 /** sick time remaining */
 var float fSickTime;
@@ -27,6 +29,10 @@ var float smWanderSpeed;
 var float smAccel;
 /** direction */
 var float smWanderDirX, smWanderDirY;
+/** the current positions */
+var float smMouseWanderX, smMouseWanderY;
+/** last change */
+var float smLastDirChangeX, smLastDirChangeY;
 /** the visual effect #1 */
 var CameraOverlay smOverlay;
 /** the visual effect #2 */
@@ -38,19 +44,45 @@ var float fElastoDuration;
 /** true if in elasto mode */
 var bool bElastoMode;
 
-
-event PreBeginPlay()
+replication
 {
-	Super.PreBeginPlay();
-	smOverlay = new class'CameraOverlay';
-	smOverlay.OverlayMaterial = material'BadAdrenaline_tex.shroom.ShroomEffect';
-	smBlur = new class'MotionBlur';
-	smBlur.BlurAlpha = 127;
+	reliable if ( Role == ROLE_Authority )
+		MyController, fSickTime,
+		fShroomDuration, bShroomsMode, smWanderSpeed, smAccel,
+		fElastoDuration, bElastoMode,  
+		ClientShroomsMode, ClientElastoMode;
 }
 
-event PlayerTick( float DeltaTime )
+event PreBeginPlay()
+{	
+	Log("BAController::PreBeginPlay");
+	Super.PreBeginPlay();
+	if ( Role == ROLE_Authority )
+	{
+		MyController = xPlayer(Owner);
+		if (MyController == none) 
+		{
+			Error("My owner is not a xPlayer:"@Owner);
+			return;
+		}	
+	}
+}
+
+event Tick( float DeltaTime )
 {
-	Super.PlayerTick(DeltaTime);
+	if (MyController == none) Error("MyController is none");
+
+	Super.Tick(DeltaTime);
+
+	if ( Role < ROLE_Authority )
+	{
+		if (bShroomsMode) 
+		{
+			MyController.aMouseX = ShroomInput(MyController.aMouseX, DeltaTime, 0);
+			MyController.aMouseY = ShroomInput(MyController.aMouseY, DeltaTime, 1);
+		}
+	}
+
 	if (fSickTime > 0)
 	{
 		fSickTime -= DeltaTime;
@@ -58,29 +90,49 @@ event PlayerTick( float DeltaTime )
 	}
 }
 
-function HandlePickup(Pickup pick)
+function bool isSick()
 {
-	Super.HandlePickup(pick);
+	return (fSickTime > 0);
 }
 
 /** activate shrooms mode */
 function ShroomsMode(optional bool bDisable)
 {
 	bShroomsMode = !bDisable;
-	if (bShroomsMode) 
+	ClientShroomsMode(bShroomsMode);
+	if (bShroomsMode) fSickTime = fShroomDuration;
+	Log("ShroomsMode"@bShroomsMode);
+}
+
+/** activate shrooms mode on the client side */
+simulated function ClientShroomsMode(bool bEnabled)
+{
+	if (bEnabled) 
 	{		
-		smWanderSpeed = 400;
+		smWanderSpeed = 0.4;
 		smWanderDirX = 1;
 		smWanderDirY = 1;
-		smAccel = 2;
-		AddCameraEffect(smOverlay, true);
-		AddCameraEffect(smBlur, true);
-		fSickTime = fShroomDuration;
+		smAccel = 2.5;
+		
+		if (smOverlay == none)
+		{
+			smOverlay = new() class'CameraOverlay';
+			smOverlay.OverlayMaterial = material'BadAdrenaline_tex.shroom.ShroomEffect';		
+		}
+		MyController.AddCameraEffect(smOverlay, true);
+
+		if (smBlur == none)
+		{
+			smBlur = new() class'MotionBlur';
+			smBlur.BlurAlpha = 127;
+		}
+		MyController.AddCameraEffect(smBlur, true);
 	}
 	else {
-		RemoveCameraEffect(smOverlay);
-		RemoveCameraEffect(smBlur);
+		MyController.RemoveCameraEffect(smOverlay);
+		MyController.RemoveCameraEffect(smBlur);
 	}
+	Log("ClientShroomsMode"@bEnabled);
 }
 
 /** activate elasto mode */
@@ -88,26 +140,73 @@ function ElastoMode(optional bool bDisable)
 {
 	// Pawn.function AddVelocity( vector NewVelocity)
 	bElastoMode = !bDisable;
-	if (bElastoMode) 
-	{		
-		// ...
-		fSickTime = fElastoDuration;
+	if (bElastoMode) fSickTime = fElastoDuration;
+	Log("ElastoMode"@bElastoMode);
+}
+
+/** activate elasto mode on the client side */
+simulated function ClientElastoMode(bool bEnabled)
+{
+	if (bEnabled) 
+	{
 	}
 	else {
 	}
+	Log("ClientElastoMode"@bEnabled);
 }
 
+/** reset the currently active effect */
 function ResetBAMode()
 {
 	fSickTime = 0;
 	if (bShroomsMode) ShroomsMode(true);
 	if (bElastoMode) ElastoMode(true);
+	Log("ResetBAMode");
+}
+
+/** shrooms mode over the players input */
+function float ShroomInput(float aMouse, float DeltaTime, int Index)
+{
+	if (index == 0)
+	{
+		if (smWanderDirX != 0) smMouseWanderX += DeltaTime*smAccel;
+		if (smMouseWanderX > pi*2) smMouseWanderX = pi*2-smMouseWanderX;
+		aMouse += smWanderDirX*cos(smMouseWanderX)*smWanderSpeed;		
+	}
+	else {
+		if (smWanderDirY != 0) smMouseWanderY += DeltaTime*smAccel;
+		if (smMouseWanderY > pi*2) smMouseWanderY = pi*2-smMouseWanderY;
+		aMouse += smWanderDirY*cos(smMouseWanderY)*smWanderSpeed;
+	}
+
+	if ((sin(smMouseWanderX) > 0.9) && (sin(smMouseWanderY) > 0.9))
+	{
+		smWanderDirX = 0;
+		smWanderDirY = 1;
+	}
+	else if ((sin(smMouseWanderX) < -0.9) && (sin(smMouseWanderY) < -0.9))
+	{
+		smWanderDirX = 1;
+		smWanderDirY = 1;
+	}
+	else if ((sin(smMouseWanderX) < -0.9) && (sin(smMouseWanderY) > 0.9))
+	{
+		smWanderDirX = 0;
+		smWanderDirY = 1;
+	}
+	else if ((sin(smMouseWanderX) > 0.9) && (sin(smMouseWanderY) < -0.9))
+	{
+		smWanderDirX = 1;
+		smWanderDirY = 1;
+	}
+	return aMouse;
 }
 
 defaultproperties
 {
-	InputClass=class'BAInput'
+	bAlwaysRelevant=true
+	RemoteRole=ROLE_AutonomousProxy
 
-	fShroomDuration=15
-	fElastoDuration=15
+	fShroomDuration=30
+	fElastoDuration=30
 }

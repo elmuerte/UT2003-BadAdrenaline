@@ -3,7 +3,7 @@
 // possible contaminated adrenaline pickup
 //
 // Copyright 2003, Michiel "El Muerte" Hendriks
-// $Id: BAdrenalinePickup.uc,v 1.2 2003/10/10 14:01:39 elmuerte Exp $
+// $Id: BAdrenalinePickup.uc,v 1.3 2003/10/11 12:34:08 elmuerte Exp $
 ////////////////////////////////////////////////////////////////////////////////
 
 class BAdrenalinePickup extends AdrenalinePickup config;
@@ -37,25 +37,25 @@ auto state Pickup
 {	
 	function Touch( actor Other )
 	{
-		local Pawn P;
+		local BAController BAC;
 			
 		if ( ValidTouch(Other) ) 
 		{
-			P = Pawn(Other);
-			if (BAController(P.Controller) == none) Super.Touch(Other);
+			BAC = FindBAController(Pawn(Other).Controller);
+			if (BAC == none) Super.Touch(Other);
 			else {
 				switch (SideEffect)
 				{
 					case BASE_Shroom:
-						if (BAController(P.Controller).fSickTime > 0) return; // don't pickup
+						if (BAC.isSick()) return; // don't pickup
 						PlaySound( sound'BadAdrenaline.ShroomsModeSound' , SLOT_Interact ); 
-						BAController(P.Controller).ShroomsMode();
+						BAC.ShroomsMode();
 						SetRespawn();
 						break;
 					case BASE_Elasto:	
-						if (BAController(P.Controller).fSickTime > 0) return; // don't pickup
+						if (BAC.isSick()) return; // don't pickup
 						PlaySound( sound'BadAdrenaline.ElastoModeSound' , SLOT_Interact ); 
-						BAController(P.Controller).ElastoMode();
+						BAC.ElastoMode();
 						SetRespawn();
 						break;
 					default: Super.Touch(Other);
@@ -101,9 +101,18 @@ function SetSideEffect()
 	Log("SideEffect ="@SideEffect@f);
 }
 
+/** find the BAController for the picking up actor */
+function BAController FindBAController(Controller ctlr)
+{
+	local BAController tempBAC;
+	foreach DynamicActors(Class'BAController', tempBAC)
+		if (tempBAC.MyController == ctlr) return tempBAC;
+	return None;
+}
+
 defaultproperties
 {
-	SEConfig(0)=(Effect=BASE_Shroom,Min=0,Max=0.25)
-	SEConfig(1)=(Effect=BASE_Elasto,Min=0.25,Max=0.5)
+	SEConfig(0)=(Effect=BASE_Shroom,Min=0,Max=0.55)
+	//SEConfig(1)=(Effect=BASE_Elasto,Min=0.25,Max=0.5)
 	VisualNotification=4
 }
